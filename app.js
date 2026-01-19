@@ -38,6 +38,7 @@ const MEALS = [
 const el = {
   monthTitle: document.getElementById("monthTitle"),
   weekTitle: document.getElementById("weekTitle"),
+  weekRange: document.getElementById("weekRange"),
   daysGrid: document.getElementById("daysGrid"),
 
   weeklyCompletion: document.getElementById("weeklyCompletion"),
@@ -77,7 +78,9 @@ let currentUser = null;
 let unsubPlan = null;
 let unsubWeekDays = [];
 let plan = structuredClone(DEFAULT_PLAN);
-let weekStart = startOfWeek(new Date()); // Monday
+let currentDate = new Date();
+currentDate.setHours(0, 0, 0, 0);
+let weekStart = startOfWeek(currentDate); // Monday
 let dayDocs = new Map(); // yyyy-mm-dd -> doc data
 
 // ------------------------
@@ -134,8 +137,8 @@ function formatRangeDutch(d1, d2) {
   return `${a.getDate()} ${m[a.getMonth()]} - ${b.getDate()} ${m[b.getMonth()]}`;
 }
 
-function monthTitleForWeek(d) {
-  // For your look: show the month of weekStart (common journaling style)
+function monthTitleForDate(d) {
+  // For your look: show the month of the selected day
   return DUTCH_MONTHS[d.getMonth()];
 }
 
@@ -222,58 +225,59 @@ function computeDayProgress(dayData) {
   return { total, done, pct, fullyDone };
 }
 
-function renderWeek() {
-  el.monthTitle.textContent = monthTitleForWeek(weekStart);
+function renderDay() {
+  el.monthTitle.textContent = monthTitleForDate(currentDate);
 
   const weekEnd = addDays(weekStart, 6);
-  el.weekTitle.textContent = `Week ${formatRangeDutch(weekStart, weekEnd)}`;
+  el.weekTitle.textContent = `${DUTCH_DAYS[currentDate.getDay()]} ${currentDate.getDate()} ${formatMonthShort(
+    currentDate
+  )}`;
+  el.weekRange.textContent = `Week ${formatRangeDutch(weekStart, weekEnd)}`;
 
   el.daysGrid.innerHTML = "";
 
-  for (let i = 0; i < 7; i++) {
-    const dateObj = addDays(weekStart, i);
-    const iso = toISODate(dateObj);
-    const dayName = DUTCH_DAYS[dateObj.getDay()];
-    const dayData = dayDocs.get(iso) || null;
+  const iso = toISODate(currentDate);
+  const dayData = dayDocs.get(iso) || null;
 
-    const { pct } = computeDayProgress(dayData);
+  const { pct } = computeDayProgress(dayData);
 
-    const card = document.createElement("article");
-    card.className = "card";
+  const card = document.createElement("article");
+  card.className = "card";
 
-    card.innerHTML = `
-      <div class="card__header">
-        <div>
-          <div class="card__title">${dayName} ${dateObj.getDate()} ${formatMonthShort(dateObj)}</div>
-          <div class="card__subtitle">${iso}</div>
-        </div>
-        <span class="pill">${pct}%</span>
+  card.innerHTML = `
+    <div class="card__header">
+      <div>
+        <div class="card__title">${DUTCH_DAYS[currentDate.getDay()]} ${currentDate.getDate()} ${formatMonthShort(
+          currentDate
+        )}</div>
+        <div class="card__subtitle">${iso}</div>
       </div>
+      <span class="pill">${pct}%</span>
+    </div>
 
-      <div class="sectionTitle">Supplementen</div>
-      <table class="table" aria-label="Supplementen tabel">
-        <tr>
-          <td>Ochtend</td>
-          <td>${renderSuppChecklist("morning", iso, dayData)}</td>
-        </tr>
-        <tr>
-          <td>Middag</td>
-          <td>${renderSuppChecklist("midday", iso, dayData)}</td>
-        </tr>
-        <tr>
-          <td>Avond</td>
-          <td>${renderSuppChecklist("evening", iso, dayData)}</td>
-        </tr>
-      </table>
+    <div class="sectionTitle">Supplementen</div>
+    <table class="table" aria-label="Supplementen tabel">
+      <tr>
+        <td>Ochtend</td>
+        <td>${renderSuppChecklist("morning", iso, dayData)}</td>
+      </tr>
+      <tr>
+        <td>Middag</td>
+        <td>${renderSuppChecklist("midday", iso, dayData)}</td>
+      </tr>
+      <tr>
+        <td>Avond</td>
+        <td>${renderSuppChecklist("evening", iso, dayData)}</td>
+      </tr>
+    </table>
 
-      <div class="sectionTitle">Maaltijden</div>
-      <ul class="checklist">
-        ${MEALS.map((m) => renderMealItem(iso, m, dayData)).join("")}
-      </ul>
-    `;
+    <div class="sectionTitle">Maaltijden</div>
+    <ul class="checklist">
+      ${MEALS.map((m) => renderMealItem(iso, m, dayData)).join("")}
+    </ul>
+  `;
 
-    el.daysGrid.appendChild(card);
-  }
+  el.daysGrid.appendChild(card);
 
   wireCardHandlers();
   updateWeekStats();
@@ -522,7 +526,7 @@ async function subscribePlan(uid) {
       evening: Array.isArray(data.evening) ? data.evening : [],
     };
 
-    renderWeek();
+    renderDay();
     renderPlanModal();
   });
 }
@@ -538,7 +542,7 @@ async function subscribeWeekDays(uid) {
     const ref = userDayRef(uid, iso);
     const unsub = onSnapshot(ref, (snap) => {
       dayDocs.set(iso, snap.data() || null);
-      renderWeek();
+      renderDay();
     });
     unsubWeekDays.push(unsub);
   }
@@ -582,30 +586,43 @@ onAuthStateChanged(auth, async (user) => {
 });
 
 // ------------------------
-// Week navigation
+// Day navigation
 // ------------------------
-el.prevWeekBtn.addEventListener("click", async () => {
-  weekStart = addDays(weekStart, -7);
-  if (currentUser) {
-    await subscribeWeekDays(currentUser.uid);
+function isSameDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
+}
+
+async function updateWeekSubscriptionIfNeeded() {
+  const nextWeekStart = startOfWeek(currentDate);
+  if (!isSameDay(weekStart, nextWeekStart)) {
+    weekStart = nextWeekStart;
+    if (currentUser) {
+      await subscribeWeekDays(currentUser.uid);
+    }
   }
-  renderWeek();
+}
+
+el.prevWeekBtn.addEventListener("click", async () => {
+  currentDate = addDays(currentDate, -1);
+  await updateWeekSubscriptionIfNeeded();
+  renderDay();
 });
 
 el.nextWeekBtn.addEventListener("click", async () => {
-  weekStart = addDays(weekStart, 7);
-  if (currentUser) {
-    await subscribeWeekDays(currentUser.uid);
-  }
-  renderWeek();
+  currentDate = addDays(currentDate, 1);
+  await updateWeekSubscriptionIfNeeded();
+  renderDay();
 });
 
 el.todayBtn.addEventListener("click", async () => {
-  weekStart = startOfWeek(new Date());
-  if (currentUser) {
-    await subscribeWeekDays(currentUser.uid);
-  }
-  renderWeek();
+  currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+  await updateWeekSubscriptionIfNeeded();
+  renderDay();
 });
 
 // ------------------------
@@ -649,4 +666,4 @@ el.addEveningBtn.addEventListener("click", async () => {
 });
 
 // Initial render (logged out state)
-renderWeek();
+renderDay();
