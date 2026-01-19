@@ -4,12 +4,13 @@ import { getAuth, GoogleAuthProvider } from "https://www.gstatic.com/firebasejs/
 import { getFirestore } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "PASTE_YOURS",
-  authDomain: "PASTE_YOURS",
-  projectId: "PASTE_YOURS",
-  storageBucket: "PASTE_YOURS",
-  messagingSenderId: "PASTE_YOURS",
-  appId: "PASTE_YOURS",
+  apiKey: "AIzaSyB_3Efs19FZU4pT-WYP1H6x4FoVDgtYvHk",
+  authDomain: "supplement-a264a.firebaseapp.com",
+  projectId: "supplement-a264a",
+  storageBucket: "supplement-a264a.firebasestorage.app",
+  messagingSenderId: "514734516251",
+  appId: "1:514734516251:web:65939f54a721170216f0be",
+  measurementId: "G-SPE594DF8S",
 };
 
 export const app = initializeApp(firebaseConfig);
