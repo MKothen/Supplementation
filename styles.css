@@ -1,15 +1,17 @@
 :root {
-  --bg: #fbfbf7;
-  --ink: #111;
-  --muted: #444;
-  --card: #fff;
-  --border: #111;
-  --shadow: 6px 6px 0 #111;
-  --shadow-sm: 4px 4px 0 #111;
-  --radius: 10px;
+  --bg: #f4f7fb;
+  --ink: #0f1c2e;
+  --muted: #4a5b74;
+  --card: #ffffff;
+  --border: rgba(15, 28, 46, 0.16);
+  --accent: #2b5aa8;
+  --accent-strong: #1c3f77;
+  --shadow: 0 14px 30px rgba(15, 28, 46, 0.12);
+  --shadow-sm: 0 8px 16px rgba(15, 28, 46, 0.1);
+  --radius: 16px;
   --gap: 14px;
-  --font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Helvetica Neue", sans-serif;
-  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font: "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 * {
@@ -23,7 +25,7 @@ body {
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: radial-gradient(circle at top, #ffffff 0%, #f0f4f9 35%, #eef3f8 100%);
   color: var(--ink);
   font-family: var(--font);
 }
@@ -32,20 +34,22 @@ body {
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--bg);
-  border-bottom: 3px solid var(--border);
-  padding: 16px 18px;
+  background: rgba(244, 247, 251, 0.9);
+  border-bottom: 1px solid var(--border);
+  padding: 18px 22px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--gap);
+  backdrop-filter: blur(10px);
 }
 
 .brand__title {
   font-family: var(--mono);
-  letter-spacing: 0.08em;
-  font-weight: 800;
-  font-size: 18px;
+  letter-spacing: 0.24em;
+  font-weight: 700;
+  font-size: 16px;
+  text-transform: uppercase;
 }
 
 .brand__subtitle {
@@ -83,9 +87,11 @@ body {
 }
 
 .weekTitle {
-  font-weight: 800;
-  font-size: 16px;
+  font-weight: 700;
+  font-size: 15px;
   font-family: var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .weekMeta {
@@ -116,10 +122,10 @@ body {
 
 .card {
   background: var(--card);
-  border: 3px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 14px;
+  padding: 16px 18px;
 }
 
 .card__header {
@@ -131,7 +137,7 @@ body {
 }
 
 .card__title {
-  font-weight: 900;
+  font-weight: 700;
   font-family: var(--mono);
   font-size: 15px;
 }
@@ -143,23 +149,25 @@ body {
 
 .sectionTitle {
   margin: 12px 0 6px;
-  font-weight: 900;
+  font-weight: 700;
   font-family: var(--mono);
   font-size: 13px;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
-  border: 2px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
   overflow: hidden;
+  background: #f9fbfe;
 }
 
 .table td {
-  border-top: 2px solid var(--border);
-  padding: 10px;
+  border-top: 1px solid var(--border);
+  padding: 12px;
   vertical-align: top;
 }
 
@@ -170,7 +178,8 @@ body {
 .table td:first-child {
   width: 92px;
   font-family: var(--mono);
-  font-weight: 800;
+  font-weight: 700;
+  color: var(--accent-strong);
 }
 
 .checklist {
@@ -185,16 +194,17 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 10px;
-  border: 2px solid var(--border);
-  border-radius: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
   box-shadow: var(--shadow-sm);
+  background: #ffffff;
 }
 
 .item input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #111;
+  accent-color: var(--accent);
 }
 
 .item__label {
@@ -205,26 +215,33 @@ body {
 .pill {
   display: inline-flex;
   align-items: center;
-  border: 2px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 6px 12px;
   font-family: var(--mono);
-  font-weight: 800;
-  box-shadow: 3px 3px 0 #111;
-  background: #fff;
-  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+  background: #f1f5fb;
+  font-size: 11px;
   white-space: nowrap;
 }
 
 .btn {
   cursor: pointer;
-  border: 3px solid var(--border);
-  background: #fff;
-  padding: 10px 12px;
-  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: linear-gradient(135deg, #ffffff, #eef3f9);
+  padding: 10px 14px;
+  border-radius: 999px;
   font-family: var(--mono);
-  font-weight: 900;
-  box-shadow: var(--shadow-sm);
+  font-weight: 700;
+  box-shadow: 0 10px 20px rgba(15, 28, 46, 0.12);
+  color: var(--accent-strong);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 22px rgba(15, 28, 46, 0.16);
 }
 
 .btn:disabled {
@@ -234,16 +251,19 @@ body {
 
 .btn--ghost {
   background: transparent;
+  box-shadow: none;
+  color: var(--muted);
 }
 
 .input {
   width: 100%;
-  border: 3px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 10px 12px;
   font-family: var(--mono);
-  font-weight: 800;
-  box-shadow: var(--shadow-sm);
+  font-weight: 600;
+  box-shadow: none;
+  background: #ffffff;
 }
 
 .footerNote {
@@ -278,10 +298,10 @@ body {
   max-width: 1100px;
   margin: 48px auto;
   background: var(--card);
-  border: 3px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  padding: 14px;
+  padding: 18px;
 }
 
 .modal__header {
@@ -289,12 +309,12 @@ body {
   justify-content: space-between;
   align-items: flex-start;
   gap: 10px;
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
   padding-bottom: 12px;
 }
 
 .modal__title {
-  font-weight: 900;
+  font-weight: 700;
   font-family: var(--mono);
 }
 
@@ -309,7 +329,7 @@ body {
 }
 
 .modal__footer {
-  border-top: 2px solid var(--border);
+  border-top: 1px solid var(--border);
   padding-top: 10px;
   color: var(--muted);
   font-size: 13px;
@@ -328,16 +348,16 @@ body {
 }
 
 .planCol {
-  border: 3px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 12px;
+  padding: 14px;
   box-shadow: var(--shadow-sm);
   background: #fff;
 }
 
 .planCol__title {
   font-family: var(--mono);
-  font-weight: 900;
+  font-weight: 700;
   margin-bottom: 10px;
 }
 
@@ -352,15 +372,16 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  border: 2px solid var(--border);
+  border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 8px 10px;
-  box-shadow: 3px 3px 0 #111;
+  padding: 10px 12px;
+  box-shadow: none;
+  background: #f7faff;
 }
 
 .planRow__name {
   font-family: var(--mono);
-  font-weight: 900;
+  font-weight: 700;
   font-size: 13px;
 }
 
