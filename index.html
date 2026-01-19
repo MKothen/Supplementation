@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Supplementen en voeding schema</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand__title" id="monthTitle">JANUARI</div>
+        <div class="brand__subtitle">Supplementen en voeding schema</div>
+      </div>
+
+      <div class="auth">
+        <div class="user" id="userBadge" hidden>
+          <span class="pill" id="userName">Ingelogd</span>
+        </div>
+        <button class="btn" id="loginBtn">Login</button>
+        <button class="btn btn--ghost" id="logoutBtn" hidden>Logout</button>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="weekbar">
+        <div class="weekbar__left">
+          <button class="btn btn--ghost" id="prevWeekBtn">← Vorige</button>
+          <button class="btn btn--ghost" id="todayBtn">Vandaag</button>
+          <button class="btn btn--ghost" id="nextWeekBtn">Volgende →</button>
+        </div>
+
+        <div class="weekbar__center">
+          <div class="weekTitle" id="weekTitle">Week</div>
+          <div class="weekMeta">
+            <span class="pill" id="weeklyCompletion">Week: 0%</span>
+            <span class="pill" id="streakPill">Streak: 0</span>
+          </div>
+        </div>
+
+        <div class="weekbar__right">
+          <button class="btn" id="editPlanBtn" disabled>Aanpassen</button>
+        </div>
+      </section>
+
+      <section class="grid" id="daysGrid" aria-live="polite"></section>
+
+      <section class="footerNote">
+        <div class="card card--note">
+          <div class="card__title">Motivatie</div>
+          <div class="card__body">
+            Kleine stappen, harde consistentie. Focus op afvinken, niet op perfectie.
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Plan editor modal -->
+    <div class="modal" id="planModal" hidden>
+      <div class="modal__backdrop" id="planModalBackdrop"></div>
+      <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="planModalTitle">
+        <div class="modal__header">
+          <div>
+            <div class="modal__title" id="planModalTitle">Supplementen aanpassen</div>
+            <div class="modal__subtitle">Voeg toe/verwijder per tijdslot. Dit geldt voor alle dagen.</div>
+          </div>
+          <button class="btn btn--ghost" id="closePlanModalBtn">Sluiten</button>
+        </div>
+
+        <div class="modal__content">
+          <div class="planCols">
+            <div class="planCol">
+              <div class="planCol__title">Ochtend</div>
+              <div class="planList" id="planMorning"></div>
+              <div class="planAdd">
+                <input class="input" id="addMorningInput" placeholder="Nieuw supplement (Ochtend)" />
+                <button class="btn" id="addMorningBtn">Toevoegen</button>
+              </div>
+            </div>
+
+            <div class="planCol">
+              <div class="planCol__title">Middag</div>
+              <div class="planList" id="planMidday"></div>
+              <div class="planAdd">
+                <input class="input" id="addMiddayInput" placeholder="Nieuw supplement (Middag)" />
+                <button class="btn" id="addMiddayBtn">Toevoegen</button>
+              </div>
+            </div>
+
+            <div class="planCol">
+              <div class="planCol__title">Avond</div>
+              <div class="planList" id="planEvening"></div>
+              <div class="planAdd">
+                <input class="input" id="addEveningInput" placeholder="Nieuw supplement (Avond)" />
+                <button class="btn" id="addEveningBtn">Toevoegen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal__footer">
+          <div class="hint">
+            Tip: houd namen kort (bijv. “B12”, “Ijzer + C”, “Multivitamine”).
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
