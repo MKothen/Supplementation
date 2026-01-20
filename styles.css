@@ -42,6 +42,14 @@ body {
   justify-content: space-between;
   gap: var(--gap);
   backdrop-filter: blur(10px);
+  flex-wrap: wrap;
+}
+
+@media (max-width: 600px) {
+  .topbar {
+    justify-content: center;
+    text-align: center;
+  }
 }
 
 .brand__title {
