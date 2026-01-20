@@ -287,23 +287,6 @@ function renderDay() {
       </div>
     </div>
 
-    <!-- Mood/Energy Section -->
-    <div class="sectionTitle">Check-in</div>
-    <div class="metrics">
-      <div class="metric">
-        <label class="metric__label">Energie <span id="val_energy">${dayData?.energy || 0}</span>/10</label>
-        <input type="range" class="slider" min="0" max="10" step="1"
-               data-kind="metric" data-field="energy" data-date="${iso}"
-               value="${dayData?.energy || 0}">
-      </div>
-      <div class="metric">
-        <label class="metric__label">Stemming <span id="val_mood">${dayData?.mood || 0}</span>/10</label>
-        <input type="range" class="slider" min="0" max="10" step="1"
-               data-kind="metric" data-field="mood" data-date="${iso}"
-               value="${dayData?.mood || 0}">
-      </div>
-    </div>
-
     <div class="sectionTitle" style="display:flex; justify-content:space-between; align-items:center;">
        <span>Supplementen</span>
        <button class="btn btn--ghost pill" style="font-size: 11px; padding: 4px 8px;" 
@@ -328,6 +311,23 @@ function renderDay() {
     <ul class="checklist">
       ${MEALS.map((m) => renderMealItem(iso, m, dayData)).join("")}
     </ul>
+    
+    <!-- Mood/Energy Section (Moved to End) -->
+    <div class="sectionTitle">Check-in</div>
+    <div class="metrics">
+      <div class="metric">
+        <label class="metric__label">Energie <span id="val_energy">${dayData?.energy || 0}</span>/10</label>
+        <input type="range" class="slider" min="0" max="10" step="1"
+               data-kind="metric" data-field="energy" data-date="${iso}"
+               value="${dayData?.energy || 0}">
+      </div>
+      <div class="metric">
+        <label class="metric__label">Stemming <span id="val_mood">${dayData?.mood || 0}</span>/10</label>
+        <input type="range" class="slider" min="0" max="10" step="1"
+               data-kind="metric" data-field="mood" data-date="${iso}"
+               value="${dayData?.mood || 0}">
+      </div>
+    </div>
   `;
 
   el.daysGrid.appendChild(card);
@@ -517,11 +517,6 @@ async function selectAllSupplements(iso) {
                 
                 // Track inventory decrement
                 if (plan.inventory && (name in plan.inventory)) {
-                    // Accumulate inventory changes? 
-                    // Firestore updateDoc can't do multiple increments on same field easily in one go if key is dynamic?
-                    // actually it can: { "inventory.B12": increment(-1) }
-                    // If same item appears multiple times in day (rare), we'd need to sum it up.
-                    // Assuming unique names per plan for simplicity or just simple increment.
                     if(!inventoryUpdates[name]) inventoryUpdates[name] = 0;
                     inventoryUpdates[name] -= 1;
                 }
