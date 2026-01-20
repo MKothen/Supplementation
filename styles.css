@@ -444,11 +444,39 @@ body {
   font-family: var(--mono);
   font-weight: 700;
   font-size: 13px;
+  flex: 1;
 }
 
 .planRow__del {
   padding: 6px 10px;
   border-radius: 10px;
+}
+
+.planRow__stock {
+  width: 60px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: center;
+}
+
+.stock-tag {
+  font-size: 11px;
+  font-family: var(--mono);
+  color: var(--muted);
+  margin-left: 6px;
+  background: rgba(0,0,0,0.05);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.stock-tag.low {
+  color: #c53030;
+  background: #fff5f5;
+  border: 1px solid #feb2b2;
 }
 
 .planAdd {
@@ -517,4 +545,3 @@ body {
 .heatmap-day.level-3 { background: #66a3ff; color: #0f1c2e; }
 .heatmap-day.level-4 { background: #3385ff; color: #ffffff; }
 .heatmap-day.level-5 { background: #0066ff; color: #ffffff; }
-
