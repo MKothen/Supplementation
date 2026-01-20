@@ -64,8 +64,8 @@ body {
 }
 
 .weekbar {
-  display: grid;
-  grid-template-columns: 1fr 1.2fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: var(--gap);
   align-items: center;
   margin-bottom: 14px;
@@ -76,14 +76,32 @@ body {
   display: flex;
   gap: 10px;
   align-items: center;
-}
-
-.weekbar__right {
-  justify-content: flex-end;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .weekbar__center {
   text-align: center;
+  order: -1;
+}
+
+@media (min-width: 1000px) {
+  .weekbar {
+    display: grid;
+    grid-template-columns: 1fr 1.2fr 1fr;
+  }
+  
+  .weekbar__center {
+    order: 0;
+  }
+
+  .weekbar__left {
+    justify-content: flex-start;
+  }
+  
+  .weekbar__right {
+    justify-content: flex-end;
+  }
 }
 
 .weekTitle {
