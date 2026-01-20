@@ -58,7 +58,8 @@ const el = {
   logoutBtn: document.getElementById("logoutBtn"),
   editPlanBtn: document.getElementById("editPlanBtn"),
   calendarBtn: document.getElementById("calendarBtn"), 
-  insightsBtn: document.getElementById("insightsBtn"),
+  insightsBtn: document.getElementById("insightsBtn"), // Weekbar button (desktop)
+  topbarInsightsBtn: document.getElementById("topbarInsightsBtn"), // Sticky Topbar button (mobile)
 
   userBadge: document.getElementById("userBadge"),
   userName: document.getElementById("userName"),
@@ -780,10 +781,8 @@ onAuthStateChanged(auth, async (user) => {
 
   el.editPlanBtn.disabled = !currentUser;
   if(el.calendarBtn) el.calendarBtn.disabled = !currentUser; 
-  if(el.insightsBtn) el.insightsBtn.disabled = !currentUser; // Should be handled but button doesn't have disabled state logic here yet
-  
-  // Actually, insights button isn't disabled by default in HTML so let's handle visibility logic or just let auth handle checks
-  // Since HTML button exists, we can wire it up.
+  if(el.insightsBtn) el.insightsBtn.disabled = !currentUser;
+  if(el.topbarInsightsBtn) el.topbarInsightsBtn.disabled = !currentUser;
   
   if (!currentUser) {
     if (unsubPlan) {
@@ -988,11 +987,14 @@ async function renderCalendarGrid() {
 // ------------------------
 // Insights & Correlations Logic
 // ------------------------
-el.insightsBtn.addEventListener("click", async () => {
+const openInsights = async () => {
     if(!currentUser) return;
     el.insightsModal.hidden = false;
     await renderInsights();
-});
+};
+
+if(el.insightsBtn) el.insightsBtn.addEventListener("click", openInsights);
+if(el.topbarInsightsBtn) el.topbarInsightsBtn.addEventListener("click", openInsights);
 
 el.closeInsightsModalBtn.addEventListener("click", () => {
     el.insightsModal.hidden = true;
