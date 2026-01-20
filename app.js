@@ -94,9 +94,11 @@ const el = {
   closeInsightsModalBtn: document.getElementById("closeInsightsModalBtn"),
   statAvgEnergy: document.getElementById("statAvgEnergy"),
   statAvgSleep: document.getElementById("statAvgSleep"),
+  statAvgWork: document.getElementById("statAvgWork"),
   statDataPoints: document.getElementById("statDataPoints"),
   energyCorrelationsList: document.getElementById("energyCorrelationsList"),
   sleepEnergyChartCtx: document.getElementById("sleepEnergyChart"),
+  workEnergyChartCtx: document.getElementById("workEnergyChart"),
 };
 
 // ------------------------
@@ -116,6 +118,7 @@ let calCursor = new Date(); // Tracks the month shown in the calendar
 
 // Insights State
 let sleepChartInstance = null;
+let workChartInstance = null;
 
 // ------------------------
 // Helpers: dates + labels
@@ -219,6 +222,7 @@ async function ensureDayDoc(uid, isoDate) {
       mood: 0,
       energy: 0,
       sleepHours: 0,
+      hoursWorked: 0,
       updatedAt: Date.now(),
     };
     await setDoc(ref, base, { merge: true });
@@ -326,9 +330,15 @@ function renderDay() {
       ${MEALS.map((m) => renderMealItem(iso, m, dayData)).join("")}
     </ul>
     
-    <!-- Mood/Energy Section (Moved to End) -->
+    <!-- Mood/Energy/Work Section -->
     <div class="sectionTitle">Check-in</div>
     <div class="metrics">
+      <div class="metric">
+        <label class="metric__label">Uren gewerkt <span id="val_hoursWorked">${dayData?.hoursWorked || 0}</span></label>
+        <input type="range" class="slider" min="0" max="16" step="0.5"
+               data-kind="metric" data-field="hoursWorked" data-date="${iso}"
+               value="${dayData?.hoursWorked || 0}">
+      </div>
       <div class="metric">
         <label class="metric__label">Energie <span id="val_energy">${dayData?.energy || 0}</span>/10</label>
         <input type="range" class="slider" min="0" max="10" step="1"
@@ -442,7 +452,7 @@ function wireCardHandlers() {
     });
   });
 
-  // Metrics (Sleep, Energy, Mood)
+  // Metrics (Sleep, Energy, Mood, Work)
   const metrics = el.daysGrid.querySelectorAll('input[data-kind="metric"]');
   metrics.forEach(inp => {
       inp.addEventListener('input', (e) => {
@@ -455,8 +465,8 @@ function wireCardHandlers() {
            if(!currentUser) return;
            const field = e.target.dataset.field;
            const iso = e.target.dataset.date;
-           // sleepHours can be float
-           const val = field === 'sleepHours' ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
+           // sleepHours/hoursWorked can be float
+           const val = (field === 'sleepHours' || field === 'hoursWorked') ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
            await ensureDayDoc(currentUser.uid, iso);
            const ref = userDayRef(currentUser.uid, iso);
            await updateDoc(ref, {
@@ -1001,9 +1011,6 @@ async function renderInsights() {
     snapshot.forEach(d => days.push(d.data()));
 
     // Filter days that have at least some data (e.g. at least an energy score > 0 OR meals checked)
-    // Actually, energy=0 is valid (low energy), but usually user default is 0 if untouched. 
-    // We only care about days where 'updatedAt' is present or some activity recorded.
-    // For simplicity, let's filter days where energy > 0 OR mood > 0 to ensure user actually logged metrics.
     const activeDays = days.filter(d => (d.energy > 0 || d.mood > 0) && d.sleepHours > 0);
     
     el.statDataPoints.textContent = activeDays.length;
@@ -1016,26 +1023,15 @@ async function renderInsights() {
     // 2. Compute Averages
     const avgEnergy = activeDays.reduce((acc, d) => acc + (d.energy || 0), 0) / activeDays.length;
     const avgSleep = activeDays.reduce((acc, d) => acc + (d.sleepHours || 0), 0) / activeDays.length;
+    const avgWork = activeDays.reduce((acc, d) => acc + (d.hoursWorked || 0), 0) / activeDays.length;
     
     el.statAvgEnergy.textContent = avgEnergy.toFixed(1);
     el.statAvgSleep.textContent = avgSleep.toFixed(1) + "u";
+    el.statAvgWork.textContent = avgWork.toFixed(1) + "u";
 
     // 3. Correlations Analysis
-    // Factors: Sleep (continuous), Water (binary), Meals (binary), Supps (binary)
-    // Target: Energy
-    
-    const factors = [];
-    
-    // 3a. Sleep Correlation (Pearson)
-    const sleepVals = activeDays.map(d => d.sleepHours || 0);
-    const energyVals = activeDays.map(d => d.energy || 0);
-    const sleepCorr = calculatePearsonCorrelation(sleepVals, energyVals);
-    
-    // We treat Sleep correlation separately for the chart, but add to factors list for ranking if we want.
-    // Actually, let's keep list for Binary factors mostly (Actionable items).
     
     // 3b. Binary Factors (Meals & Supplements)
-    // Get list of all unique tracked items
     const allMealNames = MEALS;
     const allSuppNames = new Set();
     Object.values(plan).forEach(val => {
@@ -1087,8 +1083,7 @@ async function renderInsights() {
         }
     });
     
-    // Sort by absolute impact (or just positive impact?)
-    // Let's show top Positive and top Negative
+    // Sort by absolute impact 
     rankedFactors.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
     
     // 4. Render List
@@ -1113,8 +1108,9 @@ async function renderInsights() {
         });
     }
     
-    // 5. Render Chart (Sleep vs Energy)
+    // 5. Render Charts
     renderSleepChart(activeDays);
+    renderWorkChart(activeDays);
 }
 
 function calculatePearsonCorrelation(x, y) {
@@ -1134,9 +1130,6 @@ function calculatePearsonCorrelation(x, y) {
 
 function renderSleepChart(days) {
     const ctx = el.sleepEnergyChartCtx.getContext('2d');
-    
-    // Sort by sleep hours for nicer line looking (optional, but scatter is better)
-    // Actually scatter plot is best for correlation.
     
     const dataPoints = days.map(d => ({
         x: d.sleepHours,
@@ -1176,6 +1169,57 @@ function renderSleepChart(days) {
                     callbacks: {
                         label: function(context) {
                             return `Slaap: ${context.parsed.x}u, Energie: ${context.parsed.y}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderWorkChart(days) {
+    const ctx = el.workEnergyChartCtx.getContext('2d');
+    
+    const dataPoints = days.map(d => ({
+        x: d.hoursWorked || 0,
+        y: d.energy
+    }));
+    
+    // Calculate simple trend line? For now just scatter is fine.
+    
+    if (workChartInstance) {
+        workChartInstance.destroy();
+    }
+    
+    workChartInstance = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Werkuren vs Energy',
+                data: dataPoints,
+                backgroundColor: '#e53e3e' // Reddish/Orange distinction
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: { display: true, text: 'Werk (uren)' },
+                    min: 0,
+                    max: 16
+                },
+                y: {
+                    title: { display: true, text: 'Energie Score' },
+                    min: 0,
+                    max: 10
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Werk: ${context.parsed.x}u, Energie: ${context.parsed.y}`;
                         }
                     }
                 }
