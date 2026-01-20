@@ -49,6 +49,7 @@ body {
   .topbar {
     justify-content: center;
     text-align: center;
+    padding: 12px 16px;
   }
 }
 
@@ -82,10 +83,34 @@ body {
 .weekbar__left,
 .weekbar__right {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   flex-wrap: wrap;
   justify-content: center;
+}
+
+/* Mobile Optimizations for Weekbar Buttons */
+@media (max-width: 600px) {
+  .weekbar__left,
+  .weekbar__right {
+    gap: 6px;
+    width: 100%;
+  }
+  
+  .weekbar__right .btn {
+      flex: 1; /* Distribute space evenly on mobile */
+      padding: 10px 8px;
+      font-size: 12px;
+      text-align: center;
+      min-width: 0; /* Allow shrinking */
+  }
+  
+  /* Make 'Inzichten' and 'Kalender' slightly more compact text if needed */
+  #insightsBtn, #calendarBtn, #editPlanBtn {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+  }
 }
 
 .weekbar__center {
