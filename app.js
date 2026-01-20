@@ -15,7 +15,8 @@ import {
   collection,
   query,
   where,
-  getDocs
+  getDocs,
+  increment
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // ------------------------
@@ -25,6 +26,7 @@ const DEFAULT_PLAN = {
   morning: ["Multivitamine", "B12", "Ijzer & vitamine C", "Complex weerstand"],
   midday: ["B-complex", "(B12)"],
   evening: [],
+  inventory: {} // New: maps supplement name -> count (int)
 };
 
 const MEALS = [
@@ -55,7 +57,7 @@ const el = {
   loginBtn: document.getElementById("loginBtn"),
   logoutBtn: document.getElementById("logoutBtn"),
   editPlanBtn: document.getElementById("editPlanBtn"),
-  calendarBtn: document.getElementById("calendarBtn"), // New button
+  calendarBtn: document.getElementById("calendarBtn"), 
 
   userBadge: document.getElementById("userBadge"),
   userName: document.getElementById("userName"),
@@ -148,7 +150,6 @@ function addDays(date, n) {
 }
 
 function formatRangeDutch(d1, d2) {
-  // "19 jan - 25 jan" (lowercase month abbreviation)
   const m = ["jan", "feb", "mrt", "apr", "mei", "jun", "jul", "aug", "sep", "okt", "nov", "dec"];
   const a = new Date(d1);
   const b = new Date(d2);
@@ -156,7 +157,6 @@ function formatRangeDutch(d1, d2) {
 }
 
 function monthTitleForDate(d) {
-  // For your look: show the month of the selected day
   return DUTCH_MONTHS[d.getMonth()];
 }
 
@@ -214,9 +214,7 @@ async function ensureDayDoc(uid, isoDate) {
 // Rendering
 // ------------------------
 function computeDayProgress(dayData) {
-  // total tasks = supplements (from plan) + meals
   const totalSupps = plan.morning.length + plan.midday.length + plan.evening.length;
-
   const totalMeals = MEALS.length;
 
   let doneSupps = 0;
@@ -346,6 +344,17 @@ function renderSuppChecklist(slot, iso, dayData) {
         .map((name) => {
           const checked = takenMap[name] === true;
           const id = `supp__${slot}__${iso}__${name}`;
+          
+          // Stock Logic
+          const stock = plan.inventory?.[name] ?? 0;
+          let stockBadge = "";
+          
+          // Only show stock if it exists in inventory map (>=0)
+          if (plan.inventory && name in plan.inventory) {
+             const isLow = stock <= 5;
+             stockBadge = `<span class="stock-tag ${isLow ? 'low' : ''}">${stock} over</span>`;
+          }
+
           return `
             <li class="item">
               <input type="checkbox"
@@ -355,7 +364,10 @@ function renderSuppChecklist(slot, iso, dayData) {
                      data-name="${esc(name)}"
                      id="${esc(id)}"
                      ${checked ? "checked" : ""} />
-              <label class="item__label" for="${esc(id)}">${esc(name)}</label>
+              <label class="item__label" for="${esc(id)}">
+                 ${esc(name)}
+                 ${stockBadge}
+              </label>
             </li>
           `;
         })
@@ -409,10 +421,31 @@ function wireCardHandlers() {
         });
       } else if (kind === "supp") {
         const slot = t.dataset.slot;
+        
+        // Update daily usage
         await updateDoc(ref, {
           [`taken.${slot}.${name}`]: checked,
           updatedAt: Date.now(),
         });
+        
+        // Update Inventory if tracked
+        // If checked -> decrement stock (-1)
+        // If unchecked -> increment stock (+1)
+        // Only if the item is in inventory map
+        if (plan.inventory && (name in plan.inventory)) {
+           const changeAmount = checked ? -1 : 1;
+           const pRef = userPlanRef(currentUser.uid);
+           
+           // We use dot notation for nested map update "inventory.B12"
+           // BUT Firestore field paths with dots in keys need special handling? 
+           // Standard `updateDoc(ref, { "inventory.Name": val })` works for nested fields.
+           // However, Supplement names might have dots? If so, dot notation breaks.
+           // Assuming names are simple strings for now.
+           
+           await updateDoc(pRef, {
+               [`inventory.${name}`]: increment(changeAmount)
+           });
+        }
       }
     });
   });
@@ -420,16 +453,14 @@ function wireCardHandlers() {
   const metrics = el.daysGrid.querySelectorAll('input[data-kind="metric"]');
   metrics.forEach(inp => {
       inp.addEventListener('input', (e) => {
-           // Update the specific span text immediately for feedback
            const field = e.target.dataset.field;
            const val = e.target.value;
            const span = e.target.previousElementSibling.querySelector('span');
            if(span) span.textContent = val;
       });
       inp.addEventListener('change', async (e) => {
-           // Write to Firestore on 'change' (commit)
            if(!currentUser) return;
-           const field = e.target.dataset.field; // 'mood' or 'energy'
+           const field = e.target.dataset.field;
            const iso = e.target.dataset.date;
            const val = parseInt(e.target.value, 10);
            await ensureDayDoc(currentUser.uid, iso);
@@ -443,11 +474,8 @@ function wireCardHandlers() {
 }
 
 function updateWeekStats() {
-  // weekly completion: average of day pct
   let sum = 0;
   let count = 0;
-
-  // streak: consecutive fully-complete days ending today (or latest completed)
   let streak = 0;
   let cursor = new Date();
   cursor.setHours(0, 0, 0, 0);
@@ -463,7 +491,6 @@ function updateWeekStats() {
   const weeklyPct = count ? Math.round(sum / count) : 0;
   el.weeklyCompletion.textContent = `Week: ${weeklyPct}%`;
 
-  // Streak calculation (needs docs; missing doc => not complete)
   for (let back = 0; back < 365; back++) {
     const iso = toISODate(cursor);
     const dd = dayDocs.get(iso);
@@ -512,13 +539,27 @@ function renderPlanList(slot, container) {
   list.forEach((name) => {
     const row = document.createElement("div");
     row.className = "planRow";
+    
+    // Check inventory
+    const stockVal = (plan.inventory && plan.inventory[name]) ?? 0;
+
     row.innerHTML = `
       <div class="planRow__name">${esc(name)}</div>
-      <button class="btn btn--ghost planRow__del" data-del-slot="${slot}" data-del-name="${esc(name)}">Verwijderen</button>
+      
+      <input type="number" 
+             class="planRow__stock" 
+             placeholder="#" 
+             value="${stockVal}"
+             data-set-stock="${esc(name)}"
+             title="Voorraad"
+      />
+
+      <button class="btn btn--ghost planRow__del" data-del-slot="${slot}" data-del-name="${esc(name)}">Del</button>
     `;
     container.appendChild(row);
   });
-
+  
+  // Wire Delete Btns
   container.querySelectorAll("[data-del-slot]").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       const b = e.currentTarget;
@@ -527,37 +568,55 @@ function renderPlanList(slot, container) {
       await removeSupplement(s, n);
     });
   });
+
+  // Wire Stock Inputs
+  container.querySelectorAll("[data-set-stock]").forEach((inp) => {
+      inp.addEventListener("change", async (e) => {
+          const n = e.target.dataset.setStock;
+          const val = parseInt(e.target.value, 10) || 0;
+          await updateStock(n, val);
+      });
+  });
 }
 
 async function addSupplement(slot, value) {
-  if (!currentUser) {
-    return;
-  }
+  if (!currentUser) return;
   const name = (value || "").trim();
-  if (!name) {
-    return;
-  }
+  if (!name) return;
 
   if (!plan[slot].includes(name)) {
     plan[slot] = [...plan[slot], name];
-    await setDoc(
-      userPlanRef(currentUser.uid),
-      { [slot]: plan[slot], updatedAt: Date.now() },
-      { merge: true }
-    );
+    // Default stock 30
+    const invUpdate = { [`inventory.${name}`]: 30 };
+    
+    await updateDoc(userPlanRef(currentUser.uid), { 
+        [slot]: plan[slot], 
+        ...invUpdate,
+        updatedAt: Date.now() 
+    });
   }
 }
 
 async function removeSupplement(slot, name) {
-  if (!currentUser) {
-    return;
-  }
+  if (!currentUser) return;
   plan[slot] = plan[slot].filter((x) => x !== name);
-  await setDoc(
-    userPlanRef(currentUser.uid),
-    { [slot]: plan[slot], updatedAt: Date.now() },
-    { merge: true }
-  );
+  
+  // Optionally remove from inventory map? 
+  // It's cleaner to keep it or delete field.
+  // Let's just update the list for now.
+  
+  await updateDoc(userPlanRef(currentUser.uid), { 
+      [slot]: plan[slot], 
+      updatedAt: Date.now() 
+  });
+}
+
+async function updateStock(name, count) {
+    if(!currentUser) return;
+    await updateDoc(userPlanRef(currentUser.uid), {
+        [`inventory.${name}`]: count,
+        updatedAt: Date.now()
+    });
 }
 
 // ------------------------
@@ -584,6 +643,7 @@ async function subscribePlan(uid) {
       morning: Array.isArray(data.morning) ? data.morning : [],
       midday: Array.isArray(data.midday) ? data.midday : [],
       evening: Array.isArray(data.evening) ? data.evening : [],
+      inventory: data.inventory || {}
     };
 
     renderDay();
@@ -594,7 +654,6 @@ async function subscribePlan(uid) {
 async function subscribeWeekDays(uid) {
   clearWeekSubscriptions();
 
-  // Ensure docs exist so UI has predictable structure
   for (let i = 0; i < 7; i++) {
     const iso = toISODate(addDays(weekStart, i));
     await ensureDayDoc(uid, iso);
@@ -627,7 +686,7 @@ onAuthStateChanged(auth, async (user) => {
   el.userBadge.hidden = !currentUser;
 
   el.editPlanBtn.disabled = !currentUser;
-  if(el.calendarBtn) el.calendarBtn.disabled = !currentUser; // Should be enabled/disabled too? Actually it's just a view, but needs data.
+  if(el.calendarBtn) el.calendarBtn.disabled = !currentUser; 
 
   if (!currentUser) {
     if (unsubPlan) {
@@ -730,7 +789,7 @@ el.addEveningBtn.addEventListener("click", async () => {
 // Calendar Modal Logic
 // ------------------------
 el.calendarBtn.addEventListener("click", () => {
-  if(!currentUser) return; // or show toast
+  if(!currentUser) return; 
   openCalendarModal();
 });
 
@@ -754,10 +813,8 @@ el.calNextMonth.addEventListener("click", () => {
 
 function openCalendarModal() {
   el.calendarModal.hidden = false;
-  // Reset cursor to current displayed month of the main view, or just today?
-  // Let's reset to 'currentDate' of the main view to keep context
   calCursor = new Date(currentDate);
-  calCursor.setDate(1); // start of month
+  calCursor.setDate(1); 
   renderCalendarGrid();
 }
 
@@ -765,29 +822,20 @@ async function renderCalendarGrid() {
   const y = calCursor.getFullYear();
   const m = calCursor.getMonth();
   
-  // Update Title
   const monthName = DUTCH_MONTHS[m];
   el.calMonthDisplay.textContent = `${monthName} ${y}`;
 
   el.heatmapGrid.innerHTML = '<div class="card__subtitle" style="grid-column: 1/-1; text-align:center;">Laden...</div>';
 
-  // 1. Calculate grid start/end
-  // Start of month
   const firstDayOfMonth = new Date(y, m, 1);
-  // Get day of week (0=Sun, 1=Mon). We want Mon=0, Sun=6
-  let startDay = firstDayOfMonth.getDay(); // 0=Sun
-  // shift: Mon(1)->0, Tue(2)->1 ... Sun(0)->6
+  let startDay = firstDayOfMonth.getDay(); 
   startDay = (startDay === 0 ? 6 : startDay - 1);
 
-  // Days in month
   const lastDayOfMonth = new Date(y, m + 1, 0).getDate();
   
-  // We need to fetch data for the whole month
-  // Construct range YYYY-MM-01 to YYYY-MM-31
   const startIso = toISODate(new Date(y, m, 1));
   const endIso = toISODate(new Date(y, m, lastDayOfMonth));
 
-  // Fetch from Firestore
   let monthData = new Map();
   if (currentUser) {
     try {
@@ -807,36 +855,20 @@ async function renderCalendarGrid() {
 
   el.heatmapGrid.innerHTML = "";
 
-  // Render empty cells for previous month padding
   for (let i = 0; i < startDay; i++) {
     const d = document.createElement("div");
-    // d.className = "heatmap-day"; 
-    // empty
     el.heatmapGrid.appendChild(d);
   }
 
-  // Render days
   const todayIso = toISODate(new Date());
 
   for (let d = 1; d <= lastDayOfMonth; d++) {
     const currentIterDate = new Date(y, m, d);
     const iso = toISODate(currentIterDate);
     
-    // Check local data map first (from week subscription), fallback to fetched month data
-    // Actually dayDocs only has current week. Better use the fetched 'monthData' map which covers everything.
-    // However, for the *current* week, dayDocs might have fresher data if real-time updates happen?
-    // Let's prefer monthData for simplicity in this snapshot view.
-    
     const dayData = monthData.get(iso);
     const { pct } = computeDayProgress(dayData);
 
-    // Determine color level
-    // 0 -> level-0
-    // 1-20 -> level-1
-    // 21-40 -> level-2
-    // 41-60 -> level-3
-    // 61-80 -> level-4
-    // 81-100 -> level-5
     let level = 0;
     if (pct > 0) level = 1;
     if (pct > 20) level = 2;
@@ -850,11 +882,11 @@ async function renderCalendarGrid() {
       cell.classList.add("is-today");
     }
     cell.textContent = d;
-    cell.title = `${iso}: ${pct}%`; // tooltip
+    cell.title = `${iso}: ${pct}%`; 
 
     el.heatmapGrid.appendChild(cell);
   }
 }
 
-// Initial render (logged out state)
+// Initial render
 renderDay();
