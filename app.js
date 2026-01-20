@@ -26,7 +26,7 @@ const DEFAULT_PLAN = {
   morning: ["Multivitamine", "B12", "Ijzer & vitamine C", "Complex weerstand"],
   midday: ["B-complex", "(B12)"],
   evening: [],
-  inventory: {} // New: maps supplement name -> count (int)
+  inventory: {} // maps supplement name -> count (int)
 };
 
 const MEALS = [
@@ -204,6 +204,7 @@ async function ensureDayDoc(uid, isoDate) {
       },
       mood: 0,
       energy: 0,
+      sleepHours: 0,
       updatedAt: Date.now(),
     };
     await setDoc(ref, base, { merge: true });
@@ -273,6 +274,20 @@ function renderDay() {
       <span class="pill">${pct}%</span>
     </div>
 
+    <!-- Sleep Section -->
+    <div class="sectionTitle">Slaap</div>
+    <div class="metrics">
+      <div class="metric">
+        <label class="metric__label">Uren geslapen <span id="val_sleepHours">${dayData?.sleepHours || 0}</span></label>
+        <div style="display: flex; gap: 10px; align-items: center;">
+             <input type="range" class="slider" min="0" max="12" step="0.5"
+               data-kind="metric" data-field="sleepHours" data-date="${iso}"
+               value="${dayData?.sleepHours || 0}" style="flex:1">
+        </div>
+      </div>
+    </div>
+
+    <!-- Mood/Energy Section -->
     <div class="sectionTitle">Check-in</div>
     <div class="metrics">
       <div class="metric">
@@ -289,7 +304,11 @@ function renderDay() {
       </div>
     </div>
 
-    <div class="sectionTitle">Supplementen</div>
+    <div class="sectionTitle" style="display:flex; justify-content:space-between; align-items:center;">
+       <span>Supplementen</span>
+       <button class="btn btn--ghost pill" style="font-size: 11px; padding: 4px 8px;" 
+               data-action="select-all-supps" data-date="${iso}">Alles afvinken</button>
+    </div>
     <table class="table" aria-label="Supplementen tabel">
       <tr>
         <td>Ochtend</td>
@@ -348,8 +367,6 @@ function renderSuppChecklist(slot, iso, dayData) {
           // Stock Logic
           const stock = plan.inventory?.[name] ?? 0;
           let stockBadge = "";
-          
-          // Only show stock if it exists in inventory map (>=0)
           if (plan.inventory && name in plan.inventory) {
              const isLow = stock <= 5;
              stockBadge = `<span class="stock-tag ${isLow ? 'low' : ''}">${stock} over</span>`;
@@ -400,56 +417,18 @@ function wireCardHandlers() {
   const inputs = el.daysGrid.querySelectorAll('input[type="checkbox"]');
   inputs.forEach((inp) => {
     inp.addEventListener("change", async (e) => {
-      if (!currentUser) {
-        return;
-      }
+      if (!currentUser) return;
       const t = e.currentTarget;
-
       const kind = t.dataset.kind;
       const iso = t.dataset.date;
       const name = t.dataset.name;
       const checked = t.checked === true;
 
-      await ensureDayDoc(currentUser.uid, iso);
-
-      const ref = userDayRef(currentUser.uid, iso);
-
-      if (kind === "meal") {
-        await updateDoc(ref, {
-          [`meals.${name}`]: checked,
-          updatedAt: Date.now(),
-        });
-      } else if (kind === "supp") {
-        const slot = t.dataset.slot;
-        
-        // Update daily usage
-        await updateDoc(ref, {
-          [`taken.${slot}.${name}`]: checked,
-          updatedAt: Date.now(),
-        });
-        
-        // Update Inventory if tracked
-        // If checked -> decrement stock (-1)
-        // If unchecked -> increment stock (+1)
-        // Only if the item is in inventory map
-        if (plan.inventory && (name in plan.inventory)) {
-           const changeAmount = checked ? -1 : 1;
-           const pRef = userPlanRef(currentUser.uid);
-           
-           // We use dot notation for nested map update "inventory.B12"
-           // BUT Firestore field paths with dots in keys need special handling? 
-           // Standard `updateDoc(ref, { "inventory.Name": val })` works for nested fields.
-           // However, Supplement names might have dots? If so, dot notation breaks.
-           // Assuming names are simple strings for now.
-           
-           await updateDoc(pRef, {
-               [`inventory.${name}`]: increment(changeAmount)
-           });
-        }
-      }
+      await handleCheck(iso, kind, name, checked, t.dataset.slot);
     });
   });
 
+  // Metrics (Sleep, Energy, Mood)
   const metrics = el.daysGrid.querySelectorAll('input[data-kind="metric"]');
   metrics.forEach(inp => {
       inp.addEventListener('input', (e) => {
@@ -462,7 +441,8 @@ function wireCardHandlers() {
            if(!currentUser) return;
            const field = e.target.dataset.field;
            const iso = e.target.dataset.date;
-           const val = parseInt(e.target.value, 10);
+           // sleepHours can be float
+           const val = field === 'sleepHours' ? parseFloat(e.target.value) : parseInt(e.target.value, 10);
            await ensureDayDoc(currentUser.uid, iso);
            const ref = userDayRef(currentUser.uid, iso);
            await updateDoc(ref, {
@@ -471,7 +451,110 @@ function wireCardHandlers() {
            });
       });
   });
+
+  // Select All Button
+  const selAllBtns = el.daysGrid.querySelectorAll('button[data-action="select-all-supps"]');
+  selAllBtns.forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+          if(!currentUser) return;
+          const iso = e.currentTarget.dataset.date;
+          // Trigger 'Select All' Logic
+          await selectAllSupplements(iso);
+      });
+  });
 }
+
+// Helper to centralize checkbox logic (so we can reuse for 'Select All')
+async function handleCheck(iso, kind, name, checked, slot = null) {
+      if(!currentUser) return;
+      await ensureDayDoc(currentUser.uid, iso);
+      const ref = userDayRef(currentUser.uid, iso);
+
+      if (kind === "meal") {
+        await updateDoc(ref, {
+          [`meals.${name}`]: checked,
+          updatedAt: Date.now(),
+        });
+      } else if (kind === "supp") {
+        // Update daily usage
+        await updateDoc(ref, {
+          [`taken.${slot}.${name}`]: checked,
+          updatedAt: Date.now(),
+        });
+        
+        // Update Inventory if tracked
+        if (plan.inventory && (name in plan.inventory)) {
+           const changeAmount = checked ? -1 : 1;
+           const pRef = userPlanRef(currentUser.uid);
+           await updateDoc(pRef, {
+               [`inventory.${name}`]: increment(changeAmount)
+           });
+        }
+      }
+}
+
+// Logic for 'Select All'
+async function selectAllSupplements(iso) {
+    if(!currentUser) return;
+    
+    // We need to iterate over all morning/midday/evening items in the PLAN
+    // and check if they are ALREADY taken in the dayDocs.
+    // If NOT taken -> mark as taken (true) AND decrement inventory.
+    
+    const dayData = dayDocs.get(iso);
+    const updates = {};
+    const inventoryUpdates = {};
+    
+    // Helper to process a slot
+    const processSlot = (slotName) => {
+        const items = plan[slotName] || [];
+        const takenMap = dayData?.taken?.[slotName] || {};
+        
+        items.forEach(name => {
+            if (takenMap[name] !== true) {
+                // Not yet taken, so we 'take' it
+                updates[`taken.${slotName}.${name}`] = true;
+                
+                // Track inventory decrement
+                if (plan.inventory && (name in plan.inventory)) {
+                    // Accumulate inventory changes? 
+                    // Firestore updateDoc can't do multiple increments on same field easily in one go if key is dynamic?
+                    // actually it can: { "inventory.B12": increment(-1) }
+                    // If same item appears multiple times in day (rare), we'd need to sum it up.
+                    // Assuming unique names per plan for simplicity or just simple increment.
+                    if(!inventoryUpdates[name]) inventoryUpdates[name] = 0;
+                    inventoryUpdates[name] -= 1;
+                }
+            }
+        });
+    };
+
+    processSlot("morning");
+    processSlot("midday");
+    processSlot("evening");
+    
+    if (Object.keys(updates).length === 0) {
+        // All already selected
+        return;
+    }
+    
+    // 1. Update Day Doc (mark all as taken)
+    await ensureDayDoc(currentUser.uid, iso);
+    const dayRef = userDayRef(currentUser.uid, iso);
+    updates.updatedAt = Date.now();
+    await updateDoc(dayRef, updates);
+    
+    // 2. Update Inventory (batch decrements)
+    if (Object.keys(inventoryUpdates).length > 0) {
+        const pRef = userPlanRef(currentUser.uid);
+        const invPayload = {};
+        for (const [name, change] of Object.entries(inventoryUpdates)) {
+            invPayload[`inventory.${name}`] = increment(change);
+        }
+        await updateDoc(pRef, invPayload);
+    }
+}
+
 
 function updateWeekStats() {
   let sum = 0;
@@ -540,7 +623,6 @@ function renderPlanList(slot, container) {
     const row = document.createElement("div");
     row.className = "planRow";
     
-    // Check inventory
     const stockVal = (plan.inventory && plan.inventory[name]) ?? 0;
 
     row.innerHTML = `
@@ -559,7 +641,6 @@ function renderPlanList(slot, container) {
     container.appendChild(row);
   });
   
-  // Wire Delete Btns
   container.querySelectorAll("[data-del-slot]").forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       const b = e.currentTarget;
@@ -569,7 +650,6 @@ function renderPlanList(slot, container) {
     });
   });
 
-  // Wire Stock Inputs
   container.querySelectorAll("[data-set-stock]").forEach((inp) => {
       inp.addEventListener("change", async (e) => {
           const n = e.target.dataset.setStock;
@@ -586,7 +666,6 @@ async function addSupplement(slot, value) {
 
   if (!plan[slot].includes(name)) {
     plan[slot] = [...plan[slot], name];
-    // Default stock 30
     const invUpdate = { [`inventory.${name}`]: 30 };
     
     await updateDoc(userPlanRef(currentUser.uid), { 
@@ -600,11 +679,6 @@ async function addSupplement(slot, value) {
 async function removeSupplement(slot, name) {
   if (!currentUser) return;
   plan[slot] = plan[slot].filter((x) => x !== name);
-  
-  // Optionally remove from inventory map? 
-  // It's cleaner to keep it or delete field.
-  // Let's just update the list for now.
-  
   await updateDoc(userPlanRef(currentUser.uid), { 
       [slot]: plan[slot], 
       updatedAt: Date.now() 
@@ -620,7 +694,7 @@ async function updateStock(name, count) {
 }
 
 // ------------------------
-// Subscriptions (plan + week days)
+// Subscriptions
 // ------------------------
 function clearWeekSubscriptions() {
   unsubWeekDays.forEach((fn) => fn && fn());
@@ -888,5 +962,4 @@ async function renderCalendarGrid() {
   }
 }
 
-// Initial render
 renderDay();
