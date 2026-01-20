@@ -8,9 +8,12 @@
     <link rel="manifest" href="./manifest.json" />
     <meta name="theme-color" content="#f4f7fb" />
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3004/3004458.png">
+    
+    <!-- Chart.js for Dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Cache bust styles with timestamp -->
-    <link rel="stylesheet" href="./styles.css?v=7" />
+    <link rel="stylesheet" href="./styles.css?v=8" />
   </head>
   <body>
     <header class="topbar">
@@ -46,6 +49,7 @@
         </div>
 
         <div class="weekbar__right">
+          <button class="btn btn--ghost" id="insightsBtn">Inzichten</button>
           <button class="btn btn--ghost" id="calendarBtn">Kalender</button>
           <button class="btn" id="editPlanBtn" disabled>Aanpassen</button>
         </div>
@@ -144,9 +148,65 @@
         </div>
       </div>
     </div>
+    
+    <!-- Insights Dashboard Modal -->
+    <div class="modal" id="insightsModal" hidden>
+      <div class="modal__backdrop" id="insightsModalBackdrop"></div>
+      <div class="modal__panel" role="dialog" aria-modal="true" aria-labelledby="insightsModalTitle" style="max-width: 900px;">
+        <div class="modal__header">
+          <div>
+            <div class="modal__title" id="insightsModalTitle">Inzichten & Correlaties</div>
+            <div class="modal__subtitle">Gebaseerd op al je data</div>
+          </div>
+          <button class="btn btn--ghost" id="closeInsightsModalBtn">Sluiten</button>
+        </div>
+
+        <div class="modal__content">
+           <div class="insights-grid">
+               <!-- Top Level Stats -->
+               <div class="card card--stat">
+                   <div class="card__subtitle">Gem. Energie</div>
+                   <div class="stat-value" id="statAvgEnergy">-</div>
+               </div>
+               <div class="card card--stat">
+                   <div class="card__subtitle">Gem. Slaap</div>
+                   <div class="stat-value" id="statAvgSleep">-</div>
+               </div>
+               <div class="card card--stat">
+                   <div class="card__subtitle">Data Punten</div>
+                   <div class="stat-value" id="statDataPoints">-</div>
+               </div>
+               
+               <!-- Main Chart: Sleep vs Energy -->
+               <div class="card full-width">
+                   <div class="card__title">Slaap vs. Energie</div>
+                   <div class="card__subtitle">Correlatie tussen slaapduur en energielevel</div>
+                   <div class="chart-container" style="height: 300px; margin-top:10px;">
+                       <canvas id="sleepEnergyChart"></canvas>
+                   </div>
+               </div>
+               
+               <!-- Correlations List -->
+               <div class="card full-width">
+                   <div class="card__title">Top Factoren</div>
+                   <div class="card__subtitle">Wat heeft de meeste invloed op je <strong>Energie</strong>?</div>
+                   <div class="correlations-list" id="energyCorrelationsList">
+                       <!-- JS renders items here -->
+                       <div style="padding: 20px; text-align: center; color: #888;">
+                           Laden... (of te weinig data)
+                       </div>
+                   </div>
+                   <div class="hint" style="margin-top: 10px;">
+                       * "Impact" is het verschil in gemiddelde energie op dagen mét vs. zonder deze factor.
+                   </div>
+               </div>
+           </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Cache bust app.js with timestamp -->
-    <script type="module" src="./app.js?v=7"></script>
+    <script type="module" src="./app.js?v=8"></script>
     
     <!-- Register Service Worker -->
     <script>
