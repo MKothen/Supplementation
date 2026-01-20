@@ -306,6 +306,39 @@ body {
   align-items: center;
 }
 
+/* Metrics (Mood & Energy) */
+.metrics {
+  display: grid;
+  gap: 12px;
+  background: #f9fbfe;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.metric__label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-strong);
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+}
+
+.slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+  height: 6px;
+  border-radius: 5px;
+}
+
 /* Modal */
 .modal {
   position: fixed;
