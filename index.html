@@ -13,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Cache bust styles with timestamp -->
-    <link rel="stylesheet" href="./styles.css?v=8" />
+    <link rel="stylesheet" href="./styles.css?v=9" />
   </head>
   <body>
     <header class="topbar">
@@ -173,16 +173,25 @@
                    <div class="stat-value" id="statAvgSleep">-</div>
                </div>
                <div class="card card--stat">
-                   <div class="card__subtitle">Data Punten</div>
-                   <div class="stat-value" id="statDataPoints">-</div>
+                   <div class="card__subtitle">Gem. Werk</div>
+                   <div class="stat-value" id="statAvgWork">-</div>
                </div>
                
                <!-- Main Chart: Sleep vs Energy -->
                <div class="card full-width">
                    <div class="card__title">Slaap vs. Energie</div>
                    <div class="card__subtitle">Correlatie tussen slaapduur en energielevel</div>
-                   <div class="chart-container" style="height: 300px; margin-top:10px;">
+                   <div class="chart-container" style="height: 250px; margin-top:10px;">
                        <canvas id="sleepEnergyChart"></canvas>
+                   </div>
+               </div>
+
+               <!-- New Chart: Work vs Energy -->
+               <div class="card full-width">
+                   <div class="card__title">Werk vs. Energie</div>
+                   <div class="card__subtitle">Correlatie tussen werkuren en energielevel</div>
+                   <div class="chart-container" style="height: 250px; margin-top:10px;">
+                       <canvas id="workEnergyChart"></canvas>
                    </div>
                </div>
                
@@ -206,7 +215,7 @@
     </div>
 
     <!-- Cache bust app.js with timestamp -->
-    <script type="module" src="./app.js?v=9"></script>
+    <script type="module" src="./app.js?v=10"></script>
     
     <!-- Register Service Worker -->
     <script>
