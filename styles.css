@@ -545,3 +545,91 @@ body {
 .heatmap-day.level-3 { background: #66a3ff; color: #0f1c2e; }
 .heatmap-day.level-4 { background: #3385ff; color: #ffffff; }
 .heatmap-day.level-5 { background: #0066ff; color: #ffffff; }
+
+/* Dashboard Styles */
+.insights-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 600px) {
+  .insights-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.card--stat {
+  text-align: center;
+  padding: 20px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--accent-strong);
+  margin-top: 8px;
+  font-family: var(--mono);
+}
+
+.full-width {
+  grid-column: 1 / -1;
+}
+
+.correlations-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.corr-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.corr-item__name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.corr-item__badges {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.badge {
+  font-size: 11px;
+  font-family: var(--mono);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.badge--pos {
+  background: #f0fff4;
+  color: #276749;
+  border: 1px solid #c6f6d5;
+}
+
+.badge--neg {
+  background: #fff5f5;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+}
+
+.badge--neutral {
+  background: #f7fafc;
+  color: #4a5568;
+  border: 1px solid #e2e8f0;
+}
+
+.chart-container {
+  position: relative;
+  width: 100%;
+}
