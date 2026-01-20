@@ -12,6 +12,10 @@ import {
   setDoc,
   updateDoc,
   onSnapshot,
+  collection,
+  query,
+  where,
+  getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // ------------------------
@@ -51,6 +55,8 @@ const el = {
   loginBtn: document.getElementById("loginBtn"),
   logoutBtn: document.getElementById("logoutBtn"),
   editPlanBtn: document.getElementById("editPlanBtn"),
+  calendarBtn: document.getElementById("calendarBtn"), // New button
+
   userBadge: document.getElementById("userBadge"),
   userName: document.getElementById("userName"),
 
@@ -69,6 +75,15 @@ const el = {
   addMorningBtn: document.getElementById("addMorningBtn"),
   addMiddayBtn: document.getElementById("addMiddayBtn"),
   addEveningBtn: document.getElementById("addEveningBtn"),
+
+  // Calendar Modal DOM
+  calendarModal: document.getElementById("calendarModal"),
+  calendarModalBackdrop: document.getElementById("calendarModalBackdrop"),
+  closeCalendarModalBtn: document.getElementById("closeCalendarModalBtn"),
+  calPrevMonth: document.getElementById("calPrevMonth"),
+  calNextMonth: document.getElementById("calNextMonth"),
+  calMonthDisplay: document.getElementById("calMonthDisplay"),
+  heatmapGrid: document.getElementById("heatmapGrid"),
 };
 
 // ------------------------
@@ -82,6 +97,9 @@ let currentDate = new Date();
 currentDate.setHours(0, 0, 0, 0);
 let weekStart = startOfWeek(currentDate); // Monday
 let dayDocs = new Map(); // yyyy-mm-dd -> doc data
+
+// Calendar State
+let calCursor = new Date(); // Tracks the month shown in the calendar
 
 // ------------------------
 // Helpers: dates + labels
@@ -609,6 +627,7 @@ onAuthStateChanged(auth, async (user) => {
   el.userBadge.hidden = !currentUser;
 
   el.editPlanBtn.disabled = !currentUser;
+  if(el.calendarBtn) el.calendarBtn.disabled = !currentUser; // Should be enabled/disabled too? Actually it's just a view, but needs data.
 
   if (!currentUser) {
     if (unsubPlan) {
@@ -706,6 +725,136 @@ el.addEveningBtn.addEventListener("click", async () => {
     }
   });
 });
+
+// ------------------------
+// Calendar Modal Logic
+// ------------------------
+el.calendarBtn.addEventListener("click", () => {
+  if(!currentUser) return; // or show toast
+  openCalendarModal();
+});
+
+el.closeCalendarModalBtn.addEventListener("click", () => {
+  el.calendarModal.hidden = true;
+});
+
+el.calendarModalBackdrop.addEventListener("click", () => {
+  el.calendarModal.hidden = true;
+});
+
+el.calPrevMonth.addEventListener("click", () => {
+  calCursor.setMonth(calCursor.getMonth() - 1);
+  renderCalendarGrid();
+});
+
+el.calNextMonth.addEventListener("click", () => {
+  calCursor.setMonth(calCursor.getMonth() + 1);
+  renderCalendarGrid();
+});
+
+function openCalendarModal() {
+  el.calendarModal.hidden = false;
+  // Reset cursor to current displayed month of the main view, or just today?
+  // Let's reset to 'currentDate' of the main view to keep context
+  calCursor = new Date(currentDate);
+  calCursor.setDate(1); // start of month
+  renderCalendarGrid();
+}
+
+async function renderCalendarGrid() {
+  const y = calCursor.getFullYear();
+  const m = calCursor.getMonth();
+  
+  // Update Title
+  const monthName = DUTCH_MONTHS[m];
+  el.calMonthDisplay.textContent = `${monthName} ${y}`;
+
+  el.heatmapGrid.innerHTML = '<div class="card__subtitle" style="grid-column: 1/-1; text-align:center;">Laden...</div>';
+
+  // 1. Calculate grid start/end
+  // Start of month
+  const firstDayOfMonth = new Date(y, m, 1);
+  // Get day of week (0=Sun, 1=Mon). We want Mon=0, Sun=6
+  let startDay = firstDayOfMonth.getDay(); // 0=Sun
+  // shift: Mon(1)->0, Tue(2)->1 ... Sun(0)->6
+  startDay = (startDay === 0 ? 6 : startDay - 1);
+
+  // Days in month
+  const lastDayOfMonth = new Date(y, m + 1, 0).getDate();
+  
+  // We need to fetch data for the whole month
+  // Construct range YYYY-MM-01 to YYYY-MM-31
+  const startIso = toISODate(new Date(y, m, 1));
+  const endIso = toISODate(new Date(y, m, lastDayOfMonth));
+
+  // Fetch from Firestore
+  let monthData = new Map();
+  if (currentUser) {
+    try {
+      const q = query(
+        collection(db, "users", currentUser.uid, "days"),
+        where("date", ">=", startIso),
+        where("date", "<=", endIso)
+      );
+      const snap = await getDocs(q);
+      snap.forEach(docSnap => {
+        monthData.set(docSnap.id, docSnap.data());
+      });
+    } catch (err) {
+      console.error("Error fetching month data", err);
+    }
+  }
+
+  el.heatmapGrid.innerHTML = "";
+
+  // Render empty cells for previous month padding
+  for (let i = 0; i < startDay; i++) {
+    const d = document.createElement("div");
+    // d.className = "heatmap-day"; 
+    // empty
+    el.heatmapGrid.appendChild(d);
+  }
+
+  // Render days
+  const todayIso = toISODate(new Date());
+
+  for (let d = 1; d <= lastDayOfMonth; d++) {
+    const currentIterDate = new Date(y, m, d);
+    const iso = toISODate(currentIterDate);
+    
+    // Check local data map first (from week subscription), fallback to fetched month data
+    // Actually dayDocs only has current week. Better use the fetched 'monthData' map which covers everything.
+    // However, for the *current* week, dayDocs might have fresher data if real-time updates happen?
+    // Let's prefer monthData for simplicity in this snapshot view.
+    
+    const dayData = monthData.get(iso);
+    const { pct } = computeDayProgress(dayData);
+
+    // Determine color level
+    // 0 -> level-0
+    // 1-20 -> level-1
+    // 21-40 -> level-2
+    // 41-60 -> level-3
+    // 61-80 -> level-4
+    // 81-100 -> level-5
+    let level = 0;
+    if (pct > 0) level = 1;
+    if (pct > 20) level = 2;
+    if (pct > 40) level = 3;
+    if (pct > 60) level = 4;
+    if (pct > 80) level = 5;
+
+    const cell = document.createElement("div");
+    cell.className = `heatmap-day level-${level}`;
+    if (iso === todayIso) {
+      cell.classList.add("is-today");
+    }
+    cell.textContent = d;
+    cell.title = `${iso}: ${pct}%`; // tooltip
+
+    el.heatmapGrid.appendChild(cell);
+  }
+}
 
 // Initial render (logged out state)
 renderDay();
