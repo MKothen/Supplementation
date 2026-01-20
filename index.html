@@ -13,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <!-- Cache bust styles with timestamp -->
-    <link rel="stylesheet" href="./styles.css?v=11" />
+    <link rel="stylesheet" href="./styles.css?v=12" />
   </head>
   <body>
     <header class="topbar">
@@ -23,6 +23,15 @@
       </div>
 
       <div class="auth">
+        <!-- Mobile/Desktop Sticky Insight Button -->
+        <button class="btn btn--icon" id="topbarInsightsBtn" title="Inzichten" aria-label="Inzichten">
+           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+             <line x1="18" y1="20" x2="18" y2="10"></line>
+             <line x1="12" y1="20" x2="12" y2="4"></line>
+             <line x1="6" y1="20" x2="6" y2="14"></line>
+           </svg>
+        </button>
+
         <div class="user" id="userBadge" hidden>
           <span class="pill" id="userName">Ingelogd</span>
         </div>
@@ -34,22 +43,22 @@
     <main class="container">
       <section class="weekbar">
         <div class="weekbar__left">
-          <button class="btn btn--ghost" id="prevWeekBtn">← Vorige dag</button>
+          <button class="btn btn--ghost" id="prevWeekBtn">←</button>
           <button class="btn btn--ghost" id="todayBtn">Vandaag</button>
-          <button class="btn btn--ghost" id="nextWeekBtn">Volgende dag →</button>
+          <button class="btn btn--ghost" id="nextWeekBtn">→</button>
         </div>
 
         <div class="weekbar__center">
           <div class="weekTitle" id="weekTitle">Week</div>
           <div class="weekMeta">
             <span class="pill" id="weekRange">Week</span>
-            <span class="pill" id="weeklyCompletion">Week: 0%</span>
+            <span class="pill" id="weeklyCompletion">0%</span>
             <span class="pill" id="streakPill">Streak: 0</span>
           </div>
         </div>
 
         <div class="weekbar__right">
-          <button class="btn btn--ghost" id="insightsBtn">Inzichten</button>
+          <!-- Removed duplicates from here to clean up UI, moved main actions to modal/topbar or kept essential -->
           <button class="btn btn--ghost" id="calendarBtn">Kalender</button>
           <button class="btn" id="editPlanBtn" disabled>Aanpassen</button>
         </div>
@@ -215,7 +224,7 @@
     </div>
 
     <!-- Cache bust app.js with timestamp -->
-    <script type="module" src="./app.js?v=11"></script>
+    <script type="module" src="./app.js?v=12"></script>
     
     <!-- Register Service Worker -->
     <script>
