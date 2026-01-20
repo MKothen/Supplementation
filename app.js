@@ -184,6 +184,8 @@ async function ensureDayDoc(uid, isoDate) {
         midday: {},
         evening: {},
       },
+      mood: 0,
+      energy: 0,
       updatedAt: Date.now(),
     };
     await setDoc(ref, base, { merge: true });
@@ -253,6 +255,22 @@ function renderDay() {
         <div class="card__subtitle">${iso}</div>
       </div>
       <span class="pill">${pct}%</span>
+    </div>
+
+    <div class="sectionTitle">Check-in</div>
+    <div class="metrics">
+      <div class="metric">
+        <label class="metric__label">Energie <span id="val_energy">${dayData?.energy || 0}</span>/10</label>
+        <input type="range" class="slider" min="0" max="10" step="1"
+               data-kind="metric" data-field="energy" data-date="${iso}"
+               value="${dayData?.energy || 0}">
+      </div>
+      <div class="metric">
+        <label class="metric__label">Stemming <span id="val_mood">${dayData?.mood || 0}</span>/10</label>
+        <input type="range" class="slider" min="0" max="10" step="1"
+               data-kind="metric" data-field="mood" data-date="${iso}"
+               value="${dayData?.mood || 0}">
+      </div>
     </div>
 
     <div class="sectionTitle">Supplementen</div>
@@ -379,6 +397,30 @@ function wireCardHandlers() {
         });
       }
     });
+  });
+
+  const metrics = el.daysGrid.querySelectorAll('input[data-kind="metric"]');
+  metrics.forEach(inp => {
+      inp.addEventListener('input', (e) => {
+           // Update the specific span text immediately for feedback
+           const field = e.target.dataset.field;
+           const val = e.target.value;
+           const span = e.target.previousElementSibling.querySelector('span');
+           if(span) span.textContent = val;
+      });
+      inp.addEventListener('change', async (e) => {
+           // Write to Firestore on 'change' (commit)
+           if(!currentUser) return;
+           const field = e.target.dataset.field; // 'mood' or 'energy'
+           const iso = e.target.dataset.date;
+           const val = parseInt(e.target.value, 10);
+           await ensureDayDoc(currentUser.uid, iso);
+           const ref = userDayRef(currentUser.uid, iso);
+           await updateDoc(ref, {
+               [field]: val,
+               updatedAt: Date.now()
+           });
+      });
   });
 }
 
