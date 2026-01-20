@@ -58,6 +58,7 @@ const el = {
   logoutBtn: document.getElementById("logoutBtn"),
   editPlanBtn: document.getElementById("editPlanBtn"),
   calendarBtn: document.getElementById("calendarBtn"), 
+  insightsBtn: document.getElementById("insightsBtn"),
 
   userBadge: document.getElementById("userBadge"),
   userName: document.getElementById("userName"),
@@ -86,6 +87,16 @@ const el = {
   calNextMonth: document.getElementById("calNextMonth"),
   calMonthDisplay: document.getElementById("calMonthDisplay"),
   heatmapGrid: document.getElementById("heatmapGrid"),
+
+  // Insights Modal DOM
+  insightsModal: document.getElementById("insightsModal"),
+  insightsModalBackdrop: document.getElementById("insightsModalBackdrop"),
+  closeInsightsModalBtn: document.getElementById("closeInsightsModalBtn"),
+  statAvgEnergy: document.getElementById("statAvgEnergy"),
+  statAvgSleep: document.getElementById("statAvgSleep"),
+  statDataPoints: document.getElementById("statDataPoints"),
+  energyCorrelationsList: document.getElementById("energyCorrelationsList"),
+  sleepEnergyChartCtx: document.getElementById("sleepEnergyChart"),
 };
 
 // ------------------------
@@ -102,6 +113,9 @@ let dayDocs = new Map(); // yyyy-mm-dd -> doc data
 
 // Calendar State
 let calCursor = new Date(); // Tracks the month shown in the calendar
+
+// Insights State
+let sleepChartInstance = null;
 
 // ------------------------
 // Helpers: dates + labels
@@ -756,7 +770,11 @@ onAuthStateChanged(auth, async (user) => {
 
   el.editPlanBtn.disabled = !currentUser;
   if(el.calendarBtn) el.calendarBtn.disabled = !currentUser; 
-
+  if(el.insightsBtn) el.insightsBtn.disabled = !currentUser; // Should be handled but button doesn't have disabled state logic here yet
+  
+  // Actually, insights button isn't disabled by default in HTML so let's handle visibility logic or just let auth handle checks
+  // Since HTML button exists, we can wire it up.
+  
   if (!currentUser) {
     if (unsubPlan) {
       unsubPlan();
@@ -955,6 +973,215 @@ async function renderCalendarGrid() {
 
     el.heatmapGrid.appendChild(cell);
   }
+}
+
+// ------------------------
+// Insights & Correlations Logic
+// ------------------------
+el.insightsBtn.addEventListener("click", async () => {
+    if(!currentUser) return;
+    el.insightsModal.hidden = false;
+    await renderInsights();
+});
+
+el.closeInsightsModalBtn.addEventListener("click", () => {
+    el.insightsModal.hidden = true;
+});
+el.insightsModalBackdrop.addEventListener("click", () => {
+    el.insightsModal.hidden = true;
+});
+
+async function renderInsights() {
+    el.energyCorrelationsList.innerHTML = '<div style="padding: 20px; text-align: center;">Data laden...</div>';
+    
+    // 1. Fetch all days (limit to last 100 days to prevent overload if app grows huge)
+    const q = query(collection(db, "users", currentUser.uid, "days"));
+    const snapshot = await getDocs(q);
+    const days = [];
+    snapshot.forEach(d => days.push(d.data()));
+
+    // Filter days that have at least some data (e.g. at least an energy score > 0 OR meals checked)
+    // Actually, energy=0 is valid (low energy), but usually user default is 0 if untouched. 
+    // We only care about days where 'updatedAt' is present or some activity recorded.
+    // For simplicity, let's filter days where energy > 0 OR mood > 0 to ensure user actually logged metrics.
+    const activeDays = days.filter(d => (d.energy > 0 || d.mood > 0) && d.sleepHours > 0);
+    
+    el.statDataPoints.textContent = activeDays.length;
+    
+    if (activeDays.length < 3) {
+        el.energyCorrelationsList.innerHTML = '<div style="padding: 20px; text-align: center;">Te weinig data voor analyse (min. 3 dagen).</div>';
+        return;
+    }
+
+    // 2. Compute Averages
+    const avgEnergy = activeDays.reduce((acc, d) => acc + (d.energy || 0), 0) / activeDays.length;
+    const avgSleep = activeDays.reduce((acc, d) => acc + (d.sleepHours || 0), 0) / activeDays.length;
+    
+    el.statAvgEnergy.textContent = avgEnergy.toFixed(1);
+    el.statAvgSleep.textContent = avgSleep.toFixed(1) + "u";
+
+    // 3. Correlations Analysis
+    // Factors: Sleep (continuous), Water (binary), Meals (binary), Supps (binary)
+    // Target: Energy
+    
+    const factors = [];
+    
+    // 3a. Sleep Correlation (Pearson)
+    const sleepVals = activeDays.map(d => d.sleepHours || 0);
+    const energyVals = activeDays.map(d => d.energy || 0);
+    const sleepCorr = calculatePearsonCorrelation(sleepVals, energyVals);
+    
+    // We treat Sleep correlation separately for the chart, but add to factors list for ranking if we want.
+    // Actually, let's keep list for Binary factors mostly (Actionable items).
+    
+    // 3b. Binary Factors (Meals & Supplements)
+    // Get list of all unique tracked items
+    const allMealNames = MEALS;
+    const allSuppNames = new Set();
+    Object.values(plan).forEach(val => {
+        if(Array.isArray(val)) val.forEach(s => allSuppNames.add(s));
+    });
+    
+    const binaryFactors = [
+        ...allMealNames.map(m => ({ type: 'meal', name: m })),
+        ...Array.from(allSuppNames).map(s => ({ type: 'supp', name: s }))
+    ];
+    
+    const rankedFactors = [];
+    
+    binaryFactors.forEach(factor => {
+        // Partition days
+        const daysWith = activeDays.filter(d => {
+            if (factor.type === 'meal') return d.meals?.[factor.name] === true;
+            if (factor.type === 'supp') {
+                 // Check any slot
+                 return (d.taken?.morning?.[factor.name] || d.taken?.midday?.[factor.name] || d.taken?.evening?.[factor.name]);
+            }
+            return false;
+        });
+        
+        const daysWithout = activeDays.filter(d => {
+             // Inverse of above
+             if (factor.type === 'meal') return d.meals?.[factor.name] !== true;
+             if (factor.type === 'supp') {
+                 return !(d.taken?.morning?.[factor.name] || d.taken?.midday?.[factor.name] || d.taken?.evening?.[factor.name]);
+            }
+            return true;
+        });
+        
+        // Min threshold to be meaningful
+        if (daysWith.length >= 2 && daysWithout.length >= 2) {
+            const meanWith = daysWith.reduce((a,b) => a + (b.energy||0), 0) / daysWith.length;
+            const meanWithout = daysWithout.reduce((a,b) => a + (b.energy||0), 0) / daysWithout.length;
+            
+            const diff = meanWith - meanWithout;
+            
+            // Only add if diff is somewhat notable (e.g. > 0.1)
+            if (Math.abs(diff) > 0.1) {
+                rankedFactors.push({
+                    name: factor.name,
+                    diff: diff,
+                    count: daysWith.length
+                });
+            }
+        }
+    });
+    
+    // Sort by absolute impact (or just positive impact?)
+    // Let's show top Positive and top Negative
+    rankedFactors.sort((a, b) => Math.abs(b.diff) - Math.abs(a.diff));
+    
+    // 4. Render List
+    el.energyCorrelationsList.innerHTML = "";
+    if (rankedFactors.length === 0) {
+        el.energyCorrelationsList.innerHTML = '<div style="padding:20px; text-align:center; color:#888">Geen sterke verbanden gevonden.</div>';
+    } else {
+        rankedFactors.slice(0, 5).forEach(f => {
+            const isPos = f.diff > 0;
+            const badgeClass = isPos ? 'badge--pos' : 'badge--neg';
+            const sign = isPos ? '+' : '';
+            const html = `
+                <div class="corr-item">
+                    <div class="corr-item__name">${esc(f.name)}</div>
+                    <div class="corr-item__badges">
+                        <span class="badge ${badgeClass}">Energy ${sign}${f.diff.toFixed(1)}</span>
+                        <span class="badge badge--neutral">${f.count}x</span>
+                    </div>
+                </div>
+            `;
+            el.energyCorrelationsList.insertAdjacentHTML('beforeend', html);
+        });
+    }
+    
+    // 5. Render Chart (Sleep vs Energy)
+    renderSleepChart(activeDays);
+}
+
+function calculatePearsonCorrelation(x, y) {
+    const n = x.length;
+    if (n === 0) return 0;
+    const sumX = x.reduce((a, b) => a + b, 0);
+    const sumY = y.reduce((a, b) => a + b, 0);
+    const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
+    const sumX2 = x.reduce((sum, xi) => sum + xi * xi, 0);
+    const sumY2 = y.reduce((sum, yi) => sum + yi * yi, 0);
+
+    const numerator = n * sumXY - sumX * sumY;
+    const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+
+    return denominator === 0 ? 0 : numerator / denominator;
+}
+
+function renderSleepChart(days) {
+    const ctx = el.sleepEnergyChartCtx.getContext('2d');
+    
+    // Sort by sleep hours for nicer line looking (optional, but scatter is better)
+    // Actually scatter plot is best for correlation.
+    
+    const dataPoints = days.map(d => ({
+        x: d.sleepHours,
+        y: d.energy
+    }));
+    
+    if (sleepChartInstance) {
+        sleepChartInstance.destroy();
+    }
+    
+    sleepChartInstance = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [{
+                label: 'Dagen',
+                data: dataPoints,
+                backgroundColor: '#2b5aa8'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: {
+                    title: { display: true, text: 'Slaap (uren)' },
+                    min: 0,
+                    max: 12
+                },
+                y: {
+                    title: { display: true, text: 'Energie Score' },
+                    min: 0,
+                    max: 10
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Slaap: ${context.parsed.x}u, Energie: ${context.parsed.y}`;
+                        }
+                    }
+                }
+            }
+        }
+    });
 }
 
 renderDay();
